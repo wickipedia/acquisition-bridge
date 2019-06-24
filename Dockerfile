@@ -2,16 +2,18 @@ FROM duckietown/rpi-ros-kinetic-base:master19
 
 RUN [ "cross-build-start" ]
 
-# Argumens for where the different places from which we will get files from are
-ARG acquisition_src_dir=ros-cslam/src
 
-# Create a directory to store the Python files and the April tag library
-RUN mkdir /acquisition_node
 
 # Install
 
 RUN apt-get update && apt-get install -y --allow-unauthenticated --no-install-recommends ros-kinetic-rospy python-pip && apt-get clean
 RUN pip install pathos multiprocessing-logging
+
+# Argumens for where the different places from which we will get files from are
+ARG acquisition_src_dir=ros-acquisition-bridge/src
+
+# Create a directory to store the Python files and the April tag library
+RUN mkdir /acquisition_node
 
 # Copy the Python files
 COPY ${acquisition_src_dir}/acquisition_node/acquisitionProcessor.py /acquisition_node

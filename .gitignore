@@ -1,10 +1,10 @@
-ros-cslam/build/
-ros-cslam/devel/
-ros-cslam/.catkin_workspace
+ros-acquisition-bridge/build/
+ros-acquisition-bridge/devel/
+ros-acquisition-bridge/.catkin_workspace
 !/*.pyc
-ros-cslam/install/
+ros-acquisition-bridge/install/
 *.pyc
 .vscode/
 .idea
-ros-cslam/src/CMakeLists.txt
+ros-acquisition-bridge/src/CMakeLists.txt
 
