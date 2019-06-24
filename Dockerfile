@@ -13,12 +13,6 @@ RUN mkdir /acquisition_node
 RUN apt-get update && apt-get install -y --allow-unauthenticated --no-install-recommends ros-kinetic-rospy python-pip && apt-get clean
 RUN pip install pathos multiprocessing-logging
 
-# Setup the duckietown_msgs
-#RUN mkdir -p /catkin-ws/src
-#RUN /bin/bash -c "source /opt/ros/kinetic/setup.bash; cd /catkin-ws/; catkin_make"
-#COPY ${acquisition_src_dir}/duckietown_msgs /catkin-ws/src/duckietown_msgs
-#RUN /bin/bash -c "source /catkin-ws/devel/setup.bash; cd /catkin-ws/; catkin_make"
-
 # Copy the Python files
 COPY ${acquisition_src_dir}/acquisition_node/acquisitionProcessor.py /acquisition_node
 COPY ${acquisition_src_dir}/acquisition_node/serverSidePublisher.py /acquisition_node
