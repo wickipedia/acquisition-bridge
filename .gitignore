@@ -1,0 +1,10 @@
+ros-cslam/build/
+ros-cslam/devel/
+ros-cslam/.catkin_workspace
+!/*.pyc
+ros-cslam/install/
+*.pyc
+.vscode/
+.idea
+ros-cslam/src/CMakeLists.txt
+
