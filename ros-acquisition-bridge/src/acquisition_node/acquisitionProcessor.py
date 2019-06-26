@@ -56,30 +56,35 @@ class acquisitionProcessor():
         self.lastEmptyImageStamp = 0
         self.listLock = threading.Lock()
         self.lastCameraInfo = None
+        #Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
+        self.skipRawProcessing = False
 
     def camera_image_raw_process(self, currRawImage):
-        if self.cvImage is not None:
-            self.previousCvImage = self.cvImage
-        self.cvImage = cv2.resize(self.bridge.imgmsg_to_cv2(
-            currRawImage, desired_encoding='mono8'), (0, 0), fx=0.10, fy=0.10)
-        self.cvImage = self.cvImage[10:-10, 15:-15]
-        if self.previousCvImage is not None:
-            maskedImage = cv2.absdiff(self.previousCvImage, self.cvImage)
-            _, maskedImage = cv2.threshold(
-                maskedImage, 30, 255, cv2.THRESH_BINARY)
-            self.maskNorm = cv2.norm(maskedImage)
-            self.newMaskNorm = True
-            if self.debug:
-                self.mask = self.bridge.cv2_to_compressed_imgmsg(
-                    maskedImage, dst_format='png')
-                self.mask.header = currRawImage.header
-            if self.maskNorm > 500:
-                self.publishImages = True
-            else:
-                self.publishImages = False
-                self.lastEmptyImageStamp = currRawImage.header.stamp.secs + \
-                    currRawImage.header.stamp.nsecs*10**(-9)
-                self.flushbuffer()
+        if not self.skipRawProcessing:
+            if self.cvImage is not None:
+                self.previousCvImage = self.cvImage
+            self.cvImage = cv2.resize(self.bridge.imgmsg_to_cv2(
+                currRawImage, desired_encoding='mono8'), (0, 0), fx=0.10, fy=0.10)
+            self.cvImage = self.cvImage[10:-10, 15:-15]
+            if self.previousCvImage is not None:
+                maskedImage = cv2.absdiff(self.previousCvImage, self.cvImage)
+                _, maskedImage = cv2.threshold(
+                    maskedImage, 30, 255, cv2.THRESH_BINARY)
+                self.maskNorm = cv2.norm(maskedImage)
+                self.newMaskNorm = True
+                if self.debug:
+                    self.mask = self.bridge.cv2_to_compressed_imgmsg(
+                        maskedImage, dst_format='png')
+                    self.mask.header = currRawImage.header
+                if self.maskNorm > 500:
+                    self.publishImages = True
+                else:
+                    self.publishImages = False
+                    self.lastEmptyImageStamp = currRawImage.header.stamp.secs + \
+                        currRawImage.header.stamp.nsecs*10**(-9)
+                    self.flushbuffer()
+        else:
+            self.publishImages = True
 
     def camera_info(self, camera_info):
         self.lastCameraInfo = camera_info
@@ -122,7 +127,6 @@ class acquisitionProcessor():
                             outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
                                                 block=True,
                                                 timeout=None)
-                            self.lastImageProcessed = True
                     self.imageCompressedList = []
 
             try:
