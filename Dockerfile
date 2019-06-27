@@ -29,8 +29,8 @@ COPY ${acquisition_src_dir}/duckietown_msgs /catkin-ws/src/duckietown_msgs
 RUN /bin/bash -c "source /opt/ros/kinetic/setup.bash; cd /catkin-ws/; catkin_make"
 
 # FLAG : put to true for autobots (continuous image publishing no matter what)
-ENV SKIP_BACKGROUND_SUBSTRACTION True
-ENV IS_AUTOBOT True
+ENV SKIP_BACKGROUND_SUBSTRACTION False
+ENV IS_AUTOBOT False
 
 RUN [ "cross-build-end" ]
 
