@@ -118,16 +118,16 @@ class acquisitionProcessor():
                         outputDict['imageStream'] = image
                         if self.lastCameraInfo is not None:
                             outputDict['cameraInfo'] = self.lastCameraInfo
-                        if self.newMaskNorm:
-                            self.newMaskNorm = False
-                            outputDict['maskNorm'] = self.maskNorm
                         if self.mask is not None and self.debug:
                             outputDict['mask'] = self.mask
-                        if outputDict is not None:
-                            outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
-                                                block=True,
-                                                timeout=None)
                     self.imageCompressedList = []
+            if self.newMaskNorm:
+                self.newMaskNorm = False
+                outputDict['maskNorm'] = self.maskNorm
+            if outputDict is not None:
+                outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
+                                    block=True,
+                                    timeout=None)
 
             try:
                 newQueueData = inputDictQueue.get(block=False)
