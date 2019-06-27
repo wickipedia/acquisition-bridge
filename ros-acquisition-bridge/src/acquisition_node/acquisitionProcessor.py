@@ -30,7 +30,9 @@ class acquisitionProcessor():
             'ACQ_TOPIC_RAW', 'camera_node/image/compressed')
         self.ACQ_POSES_UPDATE_RATE = float(
             os.getenv('ACQ_POSES_UPDATE_RATE', 10))  # Hz
-
+        # Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
+        self.SKIP_BACKGROUND_SUBSTRACTION = bool(
+            os.getenv('SKIP_BACKGROUND_SUBSTRACTION', False))
         # Initialize ROS nodes and subscribe to topics
         rospy.init_node('acquisition_processor',
                         anonymous=True, disable_signals=True)
@@ -52,15 +54,13 @@ class acquisitionProcessor():
         self.logger.info('Acquisition processor is set up.')
         self.debug = False
         self.imageCompressedList = []
-        self.publishImages = False
+        self.publishImages = True
         self.lastEmptyImageStamp = 0
         self.listLock = threading.Lock()
         self.lastCameraInfo = None
-        #Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
-        self.skipRawProcessing = False
 
     def camera_image_raw_process(self, currRawImage):
-        if not self.skipRawProcessing:
+        if not self.SKIP_BACKGROUND_SUBSTRACTION:
             if self.cvImage is not None:
                 self.previousCvImage = self.cvImage
             self.cvImage = cv2.resize(self.bridge.imgmsg_to_cv2(
