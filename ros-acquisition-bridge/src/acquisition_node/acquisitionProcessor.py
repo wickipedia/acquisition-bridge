@@ -121,6 +121,7 @@ class acquisitionProcessor():
                         if self.mask is not None and self.debug:
                             outputDict['mask'] = self.mask
                     self.imageCompressedList = []
+
             if self.newMaskNorm:
                 self.newMaskNorm = False
                 outputDict['maskNorm'] = self.maskNorm
