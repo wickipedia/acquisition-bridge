@@ -40,7 +40,8 @@ class publishingProcessor():
         self.logger.info(
             "Setting up the server side process completed. Waiting for messages...")
 
-        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
+        self.IS_AUTOBOT = bool(os.getenv("IS_AUTOBOT", 0))
+        self.logger.info(self.IS_AUTOBOT)
         if self.IS_AUTOBOT:
             self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
                 "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")

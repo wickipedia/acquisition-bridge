@@ -33,7 +33,7 @@ class acquisitionProcessor():
             os.getenv('ACQ_POSES_UPDATE_RATE', 10))  # Hz
         # Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
         self.SKIP_BACKGROUND_SUBSTRACTION = bool(
-            os.getenv('SKIP_BACKGROUND_SUBSTRACTION', False))
+            os.getenv('SKIP_BACKGROUND_SUBSTRACTION', 0))
 
         # Initialize ROS nodes and subscribe to topics
         rospy.init_node('acquisition_processor',
@@ -45,7 +45,7 @@ class acquisitionProcessor():
         self.subscriberCameraInfo = rospy.Subscriber(
             '/'+self.ACQ_DEVICE_NAME+'/'+"camera_node/camera_info", CameraInfo, self.camera_info,  queue_size=1)
 
-        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
+        self.IS_AUTOBOT = bool(os.getenv("IS_AUTOBOT", 0))
         if self.IS_AUTOBOT:
             self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
                 "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
