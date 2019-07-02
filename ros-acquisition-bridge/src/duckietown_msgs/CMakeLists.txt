@@ -18,6 +18,7 @@ add_message_files(
   Pose2DStamped.msg
   Twist2DStamped.msg
   AprilTagDetection.msg
+  BoolStamped.msg
 )
 
 
