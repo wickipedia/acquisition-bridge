@@ -8,6 +8,7 @@ import os
 import Queue
 import collections
 import yaml
+from duckietown_msgs.msg import WheelsCmdStamped
 
 
 class publishingProcessor():
@@ -37,6 +38,13 @@ class publishingProcessor():
         self.logger.info(
             "Setting up the server side process completed. Waiting for messages...")
 
+        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
+        if self.IS_AUTOBOT:
+            self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
+                "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
+            self.wheel_command_publisher = rospy.Publisher(
+                '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_WHEEL_COMMAND, WheelsCmdStamped, queue_size=20)
+
     def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent, logger, mode='live'):
         """
         Publishes the processed data on the ROS Master that the graph optimizer uses.
@@ -63,6 +71,9 @@ class publishingProcessor():
                     imgMsg = incomingData["mask"]
                     imgMsg.header.seq = seq_stamper
                     self.publisherMask.publish(imgMsg)
+                if "wheels_cmd" in incomingData:
+                    self.wheel_command_publisher.publish(
+                        incomingData["wheels_cmd"])
                 seq_stamper += 1
 
             except KeyboardInterrupt:
