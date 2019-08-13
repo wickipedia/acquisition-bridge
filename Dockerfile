@@ -1,5 +1,4 @@
-FROM duckietown/rpi-ros-kinetic-base:master19
-
+FROM duckietown/dt-ros-commons:master19-arm32v7
 RUN [ "cross-build-start" ]
 
 
@@ -23,11 +22,6 @@ COPY ${acquisition_src_dir}/acquisition_node/set_environment.sh /acquisition_nod
 RUN chmod +x /acquisition_node/*.py
 RUN chmod +x /acquisition_node/*.sh
 
-# Setup the duckietown_msgs
-RUN mkdir -p /catkin-ws/src
-COPY ${acquisition_src_dir}/duckietown_msgs /catkin-ws/src/duckietown_msgs
-RUN /bin/bash -c "source /opt/ros/kinetic/setup.bash; cd /catkin-ws/; catkin_make"
-
 # FLAG : put to true for autobots (continuous image publishing no matter what)
 ENV SKIP_BACKGROUND_SUBSTRACTION False
 ENV IS_AUTOBOT False
@@ -35,5 +29,6 @@ ENV IS_AUTOBOT False
 RUN [ "cross-build-end" ]
 
 
+
 # Start the processes
-CMD /bin/bash -c "cd /acquisition_node; source /opt/ros/kinetic/setup.bash; source /catkin-ws/devel/setup.bash; source ./set_environment.sh; python acquire_and_publish.py"
+CMD /bin/bash -c "cd /acquisition_node; source /opt/ros/kinetic/setup.bash; source /code/catkin_ws/devel/setup.bash; source ./set_environment.sh; python acquire_and_publish.py"
