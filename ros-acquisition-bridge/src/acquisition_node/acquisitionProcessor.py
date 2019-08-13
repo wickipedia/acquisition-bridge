@@ -18,12 +18,8 @@ class acquisitionProcessor():
     Processes the data coming from a remote device (Duckiebot or watchtower).
     """
 
-    def __init__(self, logger, mode='live'):
-
-        self.mode = mode
-        if self.mode != 'live' and self.mode != 'postprocessing':
-            raise Exception(
-                "The argument mode should be '' or 'postprocessing'. Received %s instead." % self.mode)
+    def __init__(self, logger):
+        self.logger = logger
 
         # Get the environment variables
         self.ACQ_DEVICE_NAME = os.getenv('ACQ_DEVICE_NAME', 'watchtower33')
@@ -34,12 +30,12 @@ class acquisitionProcessor():
         # Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
         self.SKIP_BACKGROUND_SUBSTRACTION = bool(
             os.getenv('SKIP_BACKGROUND_SUBSTRACTION', False))
-
+        self.logger.info(self.SKIP_BACKGROUND_SUBSTRACTION)
         # Initialize ROS nodes and subscribe to topics
         rospy.init_node('acquisition_processor',
                         anonymous=True, disable_signals=True)
         self.subscriberCompressedImage = rospy.Subscriber(
-            '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_RAW, CompressedImage, self.camera_image_process,  queue_size=5)
+            '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_RAW, CompressedImage, self.camera_image_process,  queue_size=30)
         self.subscriberRawImage = rospy.Subscriber(
             '/'+self.ACQ_DEVICE_NAME+'/'+"camera_node/image/raw", Image, self.camera_image_raw_process,  queue_size=1)
         self.subscriberCameraInfo = rospy.Subscriber(
@@ -54,7 +50,6 @@ class acquisitionProcessor():
             self.wheels_cmd_msg_list = []
             self.wheel_cmd_lock = threading.Lock()
 
-        self.logger = logger
         self.timeLastPub_poses = 0
         self.bridge = CvBridge()
         self.mask = None
@@ -97,6 +92,8 @@ class acquisitionProcessor():
                     self.mask = self.bridge.cv2_to_compressed_imgmsg(
                         maskedImage, dst_format='png')
                     self.mask.header = currRawImage.header
+                self.logger.info("mask norm is %s" % str(self.maskNorm))
+
                 if self.maskNorm > 500:
                     self.publishImages = True
                 else:

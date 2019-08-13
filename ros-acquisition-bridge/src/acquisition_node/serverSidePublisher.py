@@ -16,7 +16,7 @@ class publishingProcessor():
     Processes the data coming from a remote device (Duckiebot or watchtower).
     """
 
-    def __init__(self, logger, mode='live'):
+    def __init__(self, logger):
         self.logger = logger
         self.logger.info("Setting up the server side process")
 
@@ -26,7 +26,7 @@ class publishingProcessor():
         rospy.init_node('acquisition_node_'+self.ACQ_DEVICE_NAME)
 
         self.publisherImagesSparse = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/imageSparse/compressed", CompressedImage, queue_size=20)
+            "/"+self.ACQ_DEVICE_NAME+"/imageSparse/compressed", CompressedImage, queue_size=30)
         self.publisherMask = rospy.Publisher(
             "/"+self.ACQ_DEVICE_NAME+"/mask/compressed", CompressedImage, queue_size=1)
         self.publisherMaskNorm = rospy.Publisher(
@@ -34,7 +34,7 @@ class publishingProcessor():
         self.subscriberRawImage = rospy.Subscriber(
             '/'+self.ACQ_DEVICE_NAME+'/'+"requestImage", Bool, self.requestImage,  queue_size=1)
         self.publisherCameraInfo = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/camera_node/camera_info", CameraInfo, queue_size=20)
+            "/"+self.ACQ_DEVICE_NAME+"/camera_node/camera_info", CameraInfo, queue_size=30)
         self.logger.info(
             "Setting up the server side process completed. Waiting for messages...")
 
@@ -45,12 +45,11 @@ class publishingProcessor():
             self.wheel_command_publisher = rospy.Publisher(
                 '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_WHEEL_COMMAND, WheelsCmdStamped, queue_size=20)
 
-    def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent, logger, mode='live'):
+    def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent, logger):
         """
         Publishes the processed data on the ROS Master that the graph optimizer uses.
         """
         seq_stamper = 0
-        counts = collections.Counter()
 
         # Run continuously, check for new data arriving from the acquisitionProcessor and processed it when it arrives
         while not quitEvent.is_set():

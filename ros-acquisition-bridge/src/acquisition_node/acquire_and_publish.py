@@ -43,10 +43,10 @@ def runDeviceSideProcess(ROS_MASTER_URI, quitEvent):
     """
     Receive and process data from the remote device (Duckiebot or watchtower).
     """
-    logger.info('Device side processor starting in LIVE mode')
+    logger.info('Device side processor starting')
 
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
-    ap = acquisitionProcessor(logger, mode="live")
+    ap = acquisitionProcessor(logger)
     ap.liveUpdate(outputDictQueue, inputDictQueue, quitEvent)
 
 
@@ -54,11 +54,11 @@ def runServerSideProcess(ROS_MASTER_URI, quitEvent):
     """
     Publush the processed data to the ROS Master that the graph optimizer uses.
     """
-    logger.info('Server side processor starting in LIVE mode')
+    logger.info('Server side processor starting')
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
-    pp = publishingProcessor(logger, mode="live")
+    pp = publishingProcessor(logger)
     pp.publishOnServer(outputDictQueue, inputDictQueue,
-                       quitEvent, logger, mode='live')
+                       quitEvent, logger)
 
 
 if __name__ == '__main__':
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         ":"+ACQ_ROS_MASTER_URI_DEVICE_PORT
 
     # outputDictQueue is used to pass data between the two processes
-    outputDictQueue = multiprocessing.Queue(maxsize=40)
+    outputDictQueue = multiprocessing.Queue(maxsize=100)
     inputDictQueue = multiprocessing.Queue(maxsize=10)
 
     # Start the processes
@@ -86,12 +86,12 @@ if __name__ == '__main__':
                                                 args=(
                                                     ros_master_uri_device, quitEvent),
                                                 name="deviceSideProcess")
-    deviceSideProcess.start()
 
     serverSideProcess = multiprocessing.Process(target=runServerSideProcess,
                                                 args=(
                                                     ros_master_uri_server, quitEvent),
                                                 name="serverSideProcess")
+    deviceSideProcess.start()
     serverSideProcess.start()
 
     # Exit if any of the two processes exits:
@@ -102,8 +102,8 @@ if __name__ == '__main__':
             quitEvent.set()
             deviceSideProcess.terminate()
             # Wait until the queue is processed
-            while not outputDictQueue.empty():
-                time.sleep(0.1)
+            while not outputDictQueue.empty() and serverSideProcess.is_alive():
+                time.sleep(1)
             outputDictQueue.close()
             # Give time for submitting the last message to the server
             serverSideProcess.join()
@@ -120,4 +120,4 @@ if __name__ == '__main__':
             print("The server side process exited. Stopping everything.")
             sys.exit()
 
-        time.sleep(0.2)
+        time.sleep(1)
