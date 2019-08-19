@@ -9,6 +9,7 @@ import Queue
 import collections
 import yaml
 from duckietown_msgs.msg import WheelsCmdStamped
+import time
 
 
 class publishingProcessor():
@@ -78,6 +79,7 @@ class publishingProcessor():
             except KeyboardInterrupt:
                 raise(Exception("Exiting"))
             except Queue.Empty:
+                time.sleep(0.05)
                 pass
             except Exception as e:
                 logger.warning("Exception: %s" % str(e))

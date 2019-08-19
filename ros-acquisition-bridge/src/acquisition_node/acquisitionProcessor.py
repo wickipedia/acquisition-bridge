@@ -25,23 +25,22 @@ class acquisitionProcessor():
         self.ACQ_DEVICE_NAME = os.getenv('ACQ_DEVICE_NAME', 'watchtower33')
         self.ACQ_TOPIC_RAW = os.getenv(
             'ACQ_TOPIC_RAW', 'camera_node/image/compressed')
-        self.ACQ_POSES_UPDATE_RATE = float(
-            os.getenv('ACQ_POSES_UPDATE_RATE', 10))  # Hz
+
         # Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
         self.SKIP_BACKGROUND_SUBSTRACTION = bool(
             os.getenv('SKIP_BACKGROUND_SUBSTRACTION', False))
         self.logger.info(self.SKIP_BACKGROUND_SUBSTRACTION)
+        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
+
         # Initialize ROS nodes and subscribe to topics
         rospy.init_node('acquisition_processor',
                         anonymous=True, disable_signals=True)
         self.subscriberCompressedImage = rospy.Subscriber(
             '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_RAW, CompressedImage, self.camera_image_process,  queue_size=30)
-        self.subscriberRawImage = rospy.Subscriber(
-            '/'+self.ACQ_DEVICE_NAME+'/'+"camera_node/image/raw", Image, self.camera_image_raw_process,  queue_size=1)
+
         self.subscriberCameraInfo = rospy.Subscriber(
             '/'+self.ACQ_DEVICE_NAME+'/'+"camera_node/camera_info", CameraInfo, self.camera_info,  queue_size=1)
 
-        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
         if self.IS_AUTOBOT:
             self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
                 "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
@@ -64,6 +63,8 @@ class acquisitionProcessor():
         self.lastEmptyImageStamp = 0
         self.listLock = threading.Lock()
         self.lastCameraInfo = None
+        self.lastProcessedStamp = 0.0
+        self.processPeriod = 0.5
 
     def wheel_command_callback(self, wheels_cmd):
         self.logger.info("Got wheel command")
@@ -75,41 +76,44 @@ class acquisitionProcessor():
         with self.wheel_cmd_lock:
             self.wheels_cmd_msg_list.append(wheels_cmd)
 
-    def camera_image_raw_process(self, currRawImage):
-        if not self.SKIP_BACKGROUND_SUBSTRACTION:
-            if self.cvImage is not None:
-                self.previousCvImage = self.cvImage
-            self.cvImage = cv2.resize(self.bridge.imgmsg_to_cv2(
-                currRawImage, desired_encoding='mono8'), (0, 0), fx=0.10, fy=0.10)
-            self.cvImage = self.cvImage[10:-10, 15:-15]
-            if self.previousCvImage is not None:
-                maskedImage = cv2.absdiff(self.previousCvImage, self.cvImage)
-                _, maskedImage = cv2.threshold(
-                    maskedImage, 30, 255, cv2.THRESH_BINARY)
-                self.maskNorm = cv2.norm(maskedImage)
-                self.newMaskNorm = True
-                if self.debug:
-                    self.mask = self.bridge.cv2_to_compressed_imgmsg(
-                        maskedImage, dst_format='png')
-                    self.mask.header = currRawImage.header
-                self.logger.info("mask norm is %s" % str(self.maskNorm))
+    def camera_image_process(self, currRawImage):
+        with self.listLock:
+            self.imageCompressedList.append(currRawImage)
 
-                if self.maskNorm > 500:
-                    self.publishImages = True
-                else:
-                    self.publishImages = False
-                    self.lastEmptyImageStamp = currRawImage.header.stamp.secs + \
-                        currRawImage.header.stamp.nsecs*10**(-9)
-                    self.flushbuffer()
+        if not self.SKIP_BACKGROUND_SUBSTRACTION:
+            currentStamp = currRawImage.header.stamp.secs + \
+                currRawImage.header.stamp.nsecs*10**(-9)
+            if currentStamp - self.lastProcessedStamp > self.processPeriod:
+                if self.cvImage is not None:
+                    self.previousCvImage = self.cvImage
+                self.cvImage = cv2.resize(self.bridge.compressed_imgmsg_to_cv2(
+                    currRawImage, desired_encoding='mono8'), (0, 0), fx=0.10, fy=0.10)
+                self.cvImage = self.cvImage[10:-10, 15:-15]
+                if self.previousCvImage is not None:
+                    maskedImage = cv2.absdiff(
+                        self.previousCvImage, self.cvImage)
+                    _, maskedImage = cv2.threshold(
+                        maskedImage, 30, 255, cv2.THRESH_BINARY)
+                    self.maskNorm = cv2.norm(maskedImage)
+                    self.newMaskNorm = True
+                    if self.debug:
+                        self.mask = self.bridge.cv2_to_compressed_imgmsg(
+                            maskedImage, dst_format='png')
+                        self.mask.header = currRawImage.header
+                    self.logger.info("mask norm is %s" % str(self.maskNorm))
+
+                    if self.maskNorm > 500:
+                        self.publishImages = True
+                    else:
+                        self.publishImages = False
+                        self.lastEmptyImageStamp = currentStamp
+                        self.flushbuffer()
+                self.lastProcessedStamp = currentStamp
         else:
             self.publishImages = True
 
     def camera_info(self, camera_info):
         self.lastCameraInfo = camera_info
-
-    def camera_image_process(self, currImage):
-        with self.listLock:
-            self.imageCompressedList.append(currImage)
 
     def flushbuffer(self):
         with self.listLock:
@@ -155,7 +159,8 @@ class acquisitionProcessor():
                 outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
                                     block=True,
                                     timeout=None)
-
+            else:
+                time.sleep(0.05)
             try:
                 newQueueData = inputDictQueue.get(block=False)
                 incomingData = pickle.loads(newQueueData)

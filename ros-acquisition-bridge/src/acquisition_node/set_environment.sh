@@ -1,6 +1,5 @@
 #!/bin/bash
 
-export ACQ_POSES_UPDATE_RATE=30
 export ACQ_TOPIC_RAW="camera_node/image/compressed"
 export ACQ_TOPIC_WHEEL_COMMAND="wheels_driver_node/wheels_cmd" 
 export ACQ_DEVICE_MODE="live"

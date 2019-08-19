@@ -23,8 +23,8 @@ RUN chmod +x /acquisition_node/*.py
 RUN chmod +x /acquisition_node/*.sh
 
 # FLAG : put to true for autobots (continuous image publishing no matter what)
-ENV SKIP_BACKGROUND_SUBSTRACTION False
-ENV IS_AUTOBOT False
+# ENV SKIP_BACKGROUND_SUBSTRACTION True
+# ENV IS_AUTOBOT True
 
 RUN [ "cross-build-end" ]
 
