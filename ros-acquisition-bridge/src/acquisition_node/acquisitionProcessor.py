@@ -74,7 +74,7 @@ class acquisitionProcessor():
         wheels_cmd.header.stamp.nsecs = int(
             (current_time - wheels_cmd.header.stamp.secs) * 10**9)
 
-        with self.wheel_cmd_lock:
+        with self.wheels_cmd_lock:
             self.wheels_cmd_msg_list.append(wheels_cmd)
 
     def camera_image_process(self, currRawImage):
