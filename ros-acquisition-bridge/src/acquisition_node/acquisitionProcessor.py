@@ -9,7 +9,7 @@ import Queue
 import time
 import threading
 import cv2
-from duckietown_msgs.msg import WheelsCmdStamped
+from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped
 from cv_bridge import CvBridge, CvBridgeError
 
 
@@ -46,8 +46,10 @@ class acquisitionProcessor():
                 "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
             self.wheel_command_subscriber = rospy.Subscriber(
                 '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_WHEEL_COMMAND, WheelsCmdStamped, self.wheel_command_callback,  queue_size=5)
+            self.emergency_stop_publisher = rospy.Publisher(
+                "/"+self.ACQ_DEVICE_NAME+"/wheels_driver_node/emergency_stop", BoolStamped, queue_size=1)
             self.wheels_cmd_msg_list = []
-            self.wheel_cmd_lock = threading.Lock()
+            self.wheels_cmd_lock = threading.Lock()
 
         self.timeLastPub_poses = 0
         self.bridge = CvBridge()
@@ -67,7 +69,6 @@ class acquisitionProcessor():
         self.processPeriod = 0.5
 
     def wheel_command_callback(self, wheels_cmd):
-        self.logger.info("Got wheel command")
         current_time = time.time()
         wheels_cmd.header.stamp.secs = int(current_time)
         wheels_cmd.header.stamp.nsecs = int(
@@ -132,15 +133,6 @@ class acquisitionProcessor():
         """
         while not quitEvent.is_set():
             # Check if the last image data was not yet processed and if it's time to process it (in order to sustain the deisred update rate)
-            if self.IS_AUTOBOT:
-                with self.wheel_cmd_lock:
-                    for wheels_cmd in self.wheels_cmd_msg_list:
-                        outputDict = {"wheels_cmd": wheels_cmd}
-                        outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
-                                            block=True,
-                                            timeout=None)
-                    self.wheels_cmd_msg_list = []
-
             outputDict = dict()
             if self.publishImages:
                 with self.listLock:
@@ -152,10 +144,19 @@ class acquisitionProcessor():
                         if self.mask is not None and self.debug:
                             outputDict['mask'] = self.mask
                     self.imageCompressedList = []
+
+            if self.IS_AUTOBOT:
+                with self.wheels_cmd_lock:
+                    for wheels_cmd in self.wheels_cmd_msg_list:
+                        outputDict = {"wheels_cmd": wheels_cmd}
+                        outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
+                                            block=True,
+                                            timeout=None)
+                    self.wheels_cmd_msg_list = []
             if self.newMaskNorm:
                 self.newMaskNorm = False
                 outputDict['maskNorm'] = self.maskNorm
-            if outputDict is not None:
+            if outputDict:
                 outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
                                     block=True,
                                     timeout=None)
@@ -168,6 +169,11 @@ class acquisitionProcessor():
                     self.logger.info("Request received")
                     imgMsg = incomingData["requestImage"]
                     self.publishImages = True
+                if "toggleEmergencyStop" in incomingData:
+                    stopMsg = BoolStamped()
+                    stopMsg.data = incomingData["toggleEmergencyStop"]
+                    self.emergency_stop_publisher.publish(stopMsg)
+                    self.logger.info("Emergency stop toggled")
 
             except KeyboardInterrupt:
                 raise(Exception("Exiting"))
