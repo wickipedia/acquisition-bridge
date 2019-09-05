@@ -17,7 +17,7 @@ class publishingProcessor():
     Processes the data coming from a remote device (Duckiebot or watchtower).
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, is_autobot):
         self.logger = logger
         self.logger.info("Setting up the server side process")
 
@@ -25,36 +25,38 @@ class publishingProcessor():
         self.newEmergencyMsg = False
         self.emergencyRelease = False
 
-        self.ACQ_DEVICE_NAME = os.getenv('ACQ_DEVICE_NAME', "watchtower33")
-        rospy.init_node('acquisition_node_'+self.ACQ_DEVICE_NAME)
+        self.node_name = rospy.get_name()
+        self.veh_name = self.node_name.split("/")[1]
+
+        self.is_autobot = is_autobot
+
+        rospy.init_node('publishing_processor', anonymous=True)
 
         self.publisherImagesSparse = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/imageSparse/compressed", CompressedImage, queue_size=30)
+            "/"+self.veh_name+"/imageSparse/compressed", CompressedImage, queue_size=30)
         self.publisherMask = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/mask/compressed", CompressedImage, queue_size=1)
+            "/"+self.veh_name+"/mask/compressed", CompressedImage, queue_size=1)
         self.publisherMaskNorm = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/maskNorm", Float32, queue_size=1)
+            "/"+self.veh_name+"/maskNorm", Float32, queue_size=1)
         self.subscriberImageRequest = rospy.Subscriber(
-            '/'+self.ACQ_DEVICE_NAME+'/'+"requestImage", Bool, self.requestImage,  queue_size=1)
+            '/'+self.veh_name+'/'+"requestImage", Bool, self.requestImage,  queue_size=1)
         self.publisherCameraInfo = rospy.Publisher(
-            "/"+self.ACQ_DEVICE_NAME+"/camera_node/camera_info", CameraInfo, queue_size=30)
+            "/"+self.veh_name+"/camera_node/camera_info", CameraInfo, queue_size=30)
         self.logger.info(
             "Setting up the server side process completed. Waiting for messages...")
 
-        self.IS_AUTOBOT = bool(os.getenv("IS_AUTOBOT", 0))
-        self.logger.info(self.IS_AUTOBOT)
-        if self.IS_AUTOBOT:
-            self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
-                "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
+        self.logger.info(self.is_autobot)
+        if self.is_autobot:
+            self.acq_topic_wheel_command = "wheels_driver_node/wheels_cmd"
             self.wheel_command_publisher = rospy.Publisher(
-                '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_WHEEL_COMMAND, WheelsCmdStamped, queue_size=20)
+                '/'+self.veh_name+'/'+self.acq_topic_wheel_command, WheelsCmdStamped, queue_size=20)
             self.ready_to_start = rospy.Publisher(
-                '/'+self.ACQ_DEVICE_NAME+'/ready_to_start', Bool, queue_size=1)
+                '/'+self.veh_name+'/ready_to_start', Bool, queue_size=1)
             self.subscriberEmergencyStop = rospy.Subscriber(
-                '/'+self.ACQ_DEVICE_NAME+'/'+"toggleEmergencyStop", Bool, self.toggleEmergencyStop,  queue_size=1)
+                '/'+self.veh_name+'/'+"toggleEmergencyStop", Bool, self.toggleEmergencyStop,  queue_size=1)
             self.logger.info("Acquisition node setup in Duckiebot mode")
 
-    def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent, logger):
+    def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent):
         """
         Publishes the processed data on the ROS Master that the graph optimizer uses.
         """
@@ -80,10 +82,10 @@ class publishingProcessor():
                     imgMsg.header.seq = seq_stamper
                     self.publisherMask.publish(imgMsg)
                 if "wheels_cmd" in incomingData:
-                    wheelMsg=incomingData["wheels_cmd"]
+                    wheelMsg = incomingData["wheels_cmd"]
                     self.wheel_command_publisher.publish(wheelMsg)
                     readyMsg = Bool()
-                    if wheelMsg.vel_left!=0 or wheelMsg.vel_right!=0:
+                    if wheelMsg.vel_left != 0 or wheelMsg.vel_right != 0:
                         readyMsg.data = True
                         self.ready_to_start.publish(readyMsg)
                     else:
@@ -97,7 +99,7 @@ class publishingProcessor():
                 time.sleep(0.05)
                 pass
             except Exception as e:
-                logger.warning("Exception: %s" % str(e))
+                self.logger.warning("Exception: %s" % str(e))
                 pass
 
             inputDict = dict()
@@ -116,7 +118,6 @@ class publishingProcessor():
                                    timeout=None)
                 self.requestImageSend = False
                 self.newEmergencyMsg = False
-
 
     def requestImage(self, data):
         self.logger.info("Topic received")

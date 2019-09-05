@@ -1,35 +1,52 @@
-FROM duckietown/dt-ros-commons:master19-arm32v7
-RUN [ "cross-build-start" ]
+# parameters
+ARG REPO_NAME="acquisition-bridge"
 
+# ==================================================>
+# ==> Do not change this code
+ARG ARCH=arm32v7
+ARG MAJOR=devel20
+ARG BASE_TAG=${MAJOR}-${ARCH}
+ARG BASE_IMAGE=dt-ros-commons
 
+# define base image
+FROM duckietown/${BASE_IMAGE}:${BASE_TAG}
 
-# Install
+# define repository path
+ARG REPO_NAME
+ARG REPO_PATH="${CATKIN_WS_DIR}/src/${REPO_NAME}"
+WORKDIR "${REPO_PATH}"
 
-RUN apt-get update && apt-get install -y --allow-unauthenticated --no-install-recommends ros-kinetic-rospy python-pip && apt-get clean
-RUN pip install pathos multiprocessing-logging
+# create repo directory
+RUN mkdir -p "${REPO_PATH}"
 
-# Argumens for where the different places from which we will get files from are
-ARG acquisition_src_dir=ros-acquisition-bridge/src
+# copy dependencies files only
+COPY ./dependencies-apt.txt "${REPO_PATH}/"
+COPY ./dependencies-py.txt "${REPO_PATH}/"
 
-# Create a directory to store the Python files and the April tag library
-RUN mkdir /acquisition_node
+# install apt dependencies
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    $(awk -F: '/^[^#]/ { print $1 }' dependencies-apt.txt | uniq) \
+    && rm -rf /var/lib/apt/lists/*
 
+# install python dependencies
+RUN pip install -r ${REPO_PATH}/dependencies-py.txt
 
-# Copy the Python files
-COPY ${acquisition_src_dir}/acquisition_node/acquisitionProcessor.py /acquisition_node
-COPY ${acquisition_src_dir}/acquisition_node/serverSidePublisher.py /acquisition_node
-COPY ${acquisition_src_dir}/acquisition_node/acquire_and_publish.py /acquisition_node
-COPY ${acquisition_src_dir}/acquisition_node/set_environment.sh /acquisition_node
-RUN chmod +x /acquisition_node/*.py
-RUN chmod +x /acquisition_node/*.sh
+# copy the source code
+COPY . "${REPO_PATH}/"
 
-# FLAG : put to true for autobots (continuous image publishing no matter what)
-ENV SKIP_BACKGROUND_SUBSTRACTION True
-ENV IS_AUTOBOT True
+# build packages
+RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
+    catkin build \
+    --workspace ${CATKIN_WS_DIR}/
 
-RUN [ "cross-build-end" ]
+# define launch script
+ENV LAUNCHFILE "${REPO_PATH}/launch.sh"
 
+# define command
+CMD ["bash", "-c", "${LAUNCHFILE}"]
+# <== Do not change this code
+# <==================================================
 
-
-# Start the processes
-CMD /bin/bash -c "cd /acquisition_node; source /opt/ros/kinetic/setup.bash; source /code/catkin_ws/devel/setup.bash; source ./set_environment.sh; python acquire_and_publish.py"
+# maintainer
+LABEL maintainer="Amaury Camus (camusam@ethz.ch)"

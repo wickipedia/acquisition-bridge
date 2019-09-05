@@ -1,10 +1,2 @@
-ros-acquisition-bridge/build/
-ros-acquisition-bridge/devel/
-ros-acquisition-bridge/.catkin_workspace
-!/*.pyc
-ros-acquisition-bridge/install/
-*.pyc
-.vscode/
-.idea
-ros-acquisition-bridge/src/CMakeLists.txt
 
+.vscode/

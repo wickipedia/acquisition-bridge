@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import socket
 from serverSidePublisher import publishingProcessor
 from acquisitionProcessor import acquisitionProcessor
 import math
@@ -19,46 +20,50 @@ logger = multiprocessing.log_to_stderr()
 logger.setLevel(logging.INFO)
 
 
+def get_ip():
+    # from https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+
 # IMPORT THE ENVIRONMENT VARIABLES (DEPENDING ON THE MODE)
-ACQ_DEVICE_MODE = os.getenv('ACQ_DEVICE_MODE', 'live')
-if ACQ_DEVICE_MODE != 'live':
-    raise Exception(
-        "The environment variable ACQ_DEVICE_MODE should be 'live'. Received %s instead." % ACQ_MODE)
-ACQ_SERVER_MODE = os.getenv('ACQ_SERVER_MODE', 'live')
-if ACQ_SERVER_MODE != 'live':
-    raise Exception(
-        "The environment variable ACQ_SERVER_MODE should be 'live'. Received %s instead." % ACQ_MODE)
+ACQ_ROS_MASTER_URI_DEVICE_IP = get_ip()
+ACQ_ROS_MASTER_URI_DEVICE_PORT = "11311"
 
-ACQ_ROS_MASTER_URI_DEVICE_IP = os.getenv('ACQ_ROS_MASTER_URI_DEVICE_IP', "")
-ACQ_ROS_MASTER_URI_DEVICE_PORT = os.getenv(
-    'ACQ_ROS_MASTER_URI_DEVICE_PORT', "")
-
-ACQ_ROS_MASTER_URI_SERVER_IP = os.getenv('ACQ_ROS_MASTER_URI_SERVER_IP', "")
-ACQ_ROS_MASTER_URI_SERVER_PORT = os.getenv(
-    'ACQ_ROS_MASTER_URI_SERVER_PORT', "")
+LAB_ROS_MASTER_IP = os.getenv('LAB_ROS_MASTER_IP', "")
+LAB_ROS_MASTER_PORT = "11311"
 
 
 # Define the two concurrent processes:
-def runDeviceSideProcess(ROS_MASTER_URI, quitEvent):
+def runDeviceSideProcess(ROS_MASTER_URI, quitEvent, is_autobot):
     """
     Receive and process data from the remote device (Duckiebot or watchtower).
     """
     logger.info('Device side processor starting')
 
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
-    ap = acquisitionProcessor(logger)
+    ap = acquisitionProcessor(logger, is_autobot)
     ap.liveUpdate(outputDictQueue, inputDictQueue, quitEvent)
 
 
-def runServerSideProcess(ROS_MASTER_URI, quitEvent):
+def runServerSideProcess(ROS_MASTER_URI, quitEvent, is_autobot):
     """
     Publush the processed data to the ROS Master that the graph optimizer uses.
     """
     logger.info('Server side processor starting')
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
-    pp = publishingProcessor(logger)
+    pp = publishingProcessor(logger, is_autobot)
     pp.publishOnServer(outputDictQueue, inputDictQueue,
-                       quitEvent, logger)
+                       quitEvent)
 
 
 if __name__ == '__main__':
@@ -71,10 +76,16 @@ if __name__ == '__main__':
     # Event to terminate the two processes
     quitEvent = multiprocessing.Event()
 
-    ros_master_uri_server = "http://"+ACQ_ROS_MASTER_URI_SERVER_IP + \
-        ":"+ACQ_ROS_MASTER_URI_SERVER_PORT
+    ros_master_uri_server = "http://"+LAB_ROS_MASTER_IP + \
+        ":"+LAB_ROS_MASTER_PORT
     ros_master_uri_device = "http://"+ACQ_ROS_MASTER_URI_DEVICE_IP + \
         ":"+ACQ_ROS_MASTER_URI_DEVICE_PORT
+
+    node_name = rospy.get_name()
+    veh_name = node_name.split("/")[1]
+
+    is_autobot = bool(rospy.get_param(
+        "/"+veh_name+"/acquisition_bridge/is_autobot", default=True))
 
     # outputDictQueue is used to pass data between the two processes
     outputDictQueue = multiprocessing.Queue(maxsize=100)
@@ -84,12 +95,12 @@ if __name__ == '__main__':
 
     deviceSideProcess = multiprocessing.Process(target=runDeviceSideProcess,
                                                 args=(
-                                                    ros_master_uri_device, quitEvent),
+                                                    ros_master_uri_device, quitEvent, is_autobot),
                                                 name="deviceSideProcess")
 
     serverSideProcess = multiprocessing.Process(target=runServerSideProcess,
                                                 args=(
-                                                    ros_master_uri_server, quitEvent),
+                                                    ros_master_uri_server, quitEvent, is_autobot),
                                                 name="serverSideProcess")
     deviceSideProcess.start()
     serverSideProcess.start()

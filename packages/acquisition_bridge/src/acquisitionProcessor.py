@@ -18,36 +18,30 @@ class acquisitionProcessor():
     Processes the data coming from a remote device (Duckiebot or watchtower).
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, is_autobot):
         self.logger = logger
-
+        self.node_name = rospy.get_name()
+        self.veh_name = self.node_name.split("/")[1]
         # Get the environment variables
-        self.ACQ_DEVICE_NAME = os.getenv('ACQ_DEVICE_NAME', 'watchtower33')
-        self.ACQ_TOPIC_RAW = os.getenv(
-            'ACQ_TOPIC_RAW', 'camera_node/image/compressed')
+        self.acq_topic_raw = 'camera_node/image/compressed'
 
         # Flag to skip the Raw processing step and always publish (i.e. for Duckiebots)
-        self.SKIP_BACKGROUND_SUBSTRACTION = bool(
-            os.getenv('SKIP_BACKGROUND_SUBSTRACTION', False))
-        self.logger.info(self.SKIP_BACKGROUND_SUBSTRACTION)
-        self.IS_AUTOBOT = os.getenv("IS_AUTOBOT", False)
-
+        self.is_autobot = is_autobot
         # Initialize ROS nodes and subscribe to topics
         rospy.init_node('acquisition_processor',
                         anonymous=True, disable_signals=True)
         self.subscriberCompressedImage = rospy.Subscriber(
-            '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_RAW, CompressedImage, self.camera_image_process,  queue_size=30)
+            '/'+self.veh_name+'/'+self.acq_topic_raw, CompressedImage, self.camera_image_process,  queue_size=30)
 
         self.subscriberCameraInfo = rospy.Subscriber(
-            '/'+self.ACQ_DEVICE_NAME+'/'+"camera_node/camera_info", CameraInfo, self.camera_info,  queue_size=1)
+            '/'+self.veh_name+'/'+"camera_node/camera_info", CameraInfo, self.camera_info,  queue_size=1)
 
-        if self.IS_AUTOBOT:
-            self.ACQ_TOPIC_WHEEL_COMMAND = os.getenv(
-                "ACQ_TOPIC_WHEEL_COMMAND", "wheels_driver_node/wheels_cmd")
+        if self.is_autobot:
+            self.acq_topic_wheel_command = "wheels_driver_node/wheels_cmd"
             self.wheel_command_subscriber = rospy.Subscriber(
-                '/'+self.ACQ_DEVICE_NAME+'/'+self.ACQ_TOPIC_WHEEL_COMMAND, WheelsCmdStamped, self.wheel_command_callback,  queue_size=5)
+                '/'+self.veh_name+'/'+self.acq_topic_wheel_command, WheelsCmdStamped, self.wheel_command_callback,  queue_size=5)
             self.emergency_stop_publisher = rospy.Publisher(
-                "/"+self.ACQ_DEVICE_NAME+"/wheels_driver_node/emergency_stop", BoolStamped, queue_size=1)
+                "/"+self.veh_name+"/wheels_driver_node/emergency_stop", BoolStamped, queue_size=1)
             self.wheels_cmd_msg_list = []
             self.wheels_cmd_lock = threading.Lock()
 
@@ -81,7 +75,7 @@ class acquisitionProcessor():
         with self.listLock:
             self.imageCompressedList.append(currRawImage)
 
-        if not self.SKIP_BACKGROUND_SUBSTRACTION:
+        if not self.is_autobot:
             currentStamp = currRawImage.header.stamp.secs + \
                 currRawImage.header.stamp.nsecs*10**(-9)
             if currentStamp - self.lastProcessedStamp > self.processPeriod:
@@ -145,7 +139,7 @@ class acquisitionProcessor():
                             outputDict['mask'] = self.mask
                     self.imageCompressedList = []
 
-            if self.IS_AUTOBOT:
+            if self.is_autobot:
                 with self.wheels_cmd_lock:
                     for wheels_cmd in self.wheels_cmd_msg_list:
                         outputDict = {"wheels_cmd": wheels_cmd}
