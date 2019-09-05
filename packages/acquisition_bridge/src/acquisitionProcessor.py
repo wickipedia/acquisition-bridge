@@ -9,7 +9,7 @@ import Queue
 import time
 import threading
 import cv2
-from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped
+from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped, LightSensor
 from cv_bridge import CvBridge, CvBridgeError
 
 
@@ -44,6 +44,9 @@ class acquisitionProcessor():
                 "/"+self.veh_name+"/wheels_driver_node/emergency_stop", BoolStamped, queue_size=1)
             self.wheels_cmd_msg_list = []
             self.wheels_cmd_lock = threading.Lock()
+        else:
+            self.light_sensor_subscriber = rospy.Subscriber(
+                '/'+self.veh_name+'/light_sensor_node/sensor_data', LightSensor, self.cb_light_sensor, queue_size=1)
 
         self.timeLastPub_poses = 0
         self.bridge = CvBridge()
@@ -61,6 +64,9 @@ class acquisitionProcessor():
         self.lastCameraInfo = None
         self.lastProcessedStamp = 0.0
         self.processPeriod = 0.5
+
+        self.currentLux = 0
+        self.newLuxData = False
 
     def wheel_command_callback(self, wheels_cmd):
         current_time = time.time()
@@ -90,7 +96,6 @@ class acquisitionProcessor():
                     _, maskedImage = cv2.threshold(
                         maskedImage, 30, 255, cv2.THRESH_BINARY)
                     self.maskNorm = cv2.norm(maskedImage)
-                    self.newMaskNorm = True
                     if self.debug:
                         self.mask = self.bridge.cv2_to_compressed_imgmsg(
                             maskedImage, dst_format='png')
@@ -103,12 +108,17 @@ class acquisitionProcessor():
                         self.publishImages = False
                         self.lastEmptyImageStamp = currentStamp
                         self.flushbuffer()
+                    self.newMaskNorm = True
                 self.lastProcessedStamp = currentStamp
         else:
             self.publishImages = True
 
     def camera_info(self, camera_info):
         self.lastCameraInfo = camera_info
+
+    def cb_light_sensor(self, data):
+        self.currentLux = data.real_lux
+        self.newLuxData = True
 
     def flushbuffer(self):
         with self.listLock:
@@ -147,9 +157,15 @@ class acquisitionProcessor():
                                             block=True,
                                             timeout=None)
                     self.wheels_cmd_msg_list = []
-            if self.newMaskNorm:
-                self.newMaskNorm = False
-                outputDict['maskNorm'] = self.maskNorm
+            else:
+                if self.newMaskNorm:
+                    self.newMaskNorm = False
+                    outputDict['maskNorm'] = self.maskNorm
+
+                if self.newLuxData:
+                    self.newLuxData = False
+                    outputDict['currentLux'] = self.currentLux
+
             if outputDict:
                 outputDictQueue.put(obj=pickle.dumps(outputDict, protocol=-1),
                                     block=True,

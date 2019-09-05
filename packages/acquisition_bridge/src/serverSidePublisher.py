@@ -2,7 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import CompressedImage, CameraInfo
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, Int16
 import cPickle as pickle
 import os
 import Queue
@@ -55,6 +55,9 @@ class publishingProcessor():
             self.subscriberEmergencyStop = rospy.Subscriber(
                 '/'+self.veh_name+'/'+"toggleEmergencyStop", Bool, self.toggleEmergencyStop,  queue_size=1)
             self.logger.info("Acquisition node setup in Duckiebot mode")
+        else:
+            self.publish_lux = rospy.Publisher(
+                '/'+self.veh_name+'/current_lux', Int16, queue_size=1)
 
     def publishOnServer(self, outputDictQueue, inputDictQueue, quitEvent):
         """
@@ -81,6 +84,10 @@ class publishingProcessor():
                     imgMsg = incomingData["mask"]
                     imgMsg.header.seq = seq_stamper
                     self.publisherMask.publish(imgMsg)
+                if "currentLux" in incomingData:
+                    luxMsg = Int16()
+                    luxMsg.data = incomingData["currentLux"]
+                    self.publish_lux.publish(luxMsg)
                 if "wheels_cmd" in incomingData:
                     wheelMsg = incomingData["wheels_cmd"]
                     self.wheel_command_publisher.publish(wheelMsg)
