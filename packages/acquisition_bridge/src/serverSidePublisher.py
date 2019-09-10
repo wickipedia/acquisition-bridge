@@ -47,7 +47,7 @@ class publishingProcessor():
 
         self.logger.info(self.is_autobot)
         if self.is_autobot:
-            self.acq_topic_wheel_command = "wheels_driver_node/wheels_cmd"
+            self.acq_topic_wheel_command = "wheels_driver_node/wheels_cmd_decalibrated"
             self.wheel_command_publisher = rospy.Publisher(
                 '/'+self.veh_name+'/'+self.acq_topic_wheel_command, WheelsCmdStamped, queue_size=20)
             self.ready_to_start = rospy.Publisher(

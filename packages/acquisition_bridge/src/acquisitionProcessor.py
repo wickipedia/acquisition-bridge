@@ -11,6 +11,8 @@ import threading
 import cv2
 from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped, LightSensor
 from cv_bridge import CvBridge, CvBridgeError
+from duckietown_utils import get_duckiefleet_root
+import yaml
 
 
 class acquisitionProcessor():
@@ -37,6 +39,9 @@ class acquisitionProcessor():
             '/'+self.veh_name+'/'+"camera_node/camera_info", CameraInfo, self.camera_info,  queue_size=1)
 
         if self.is_autobot:
+            self.trim = 0.0
+            self.gain = 1.0
+            self.readParamFromFile()
             self.acq_topic_wheel_command = "wheels_driver_node/wheels_cmd"
             self.wheel_command_subscriber = rospy.Subscriber(
                 '/'+self.veh_name+'/'+self.acq_topic_wheel_command, WheelsCmdStamped, self.wheel_command_callback,  queue_size=5)
@@ -68,11 +73,53 @@ class acquisitionProcessor():
         self.currentLux = 0
         self.newLuxData = False
 
+    def getFilePath(self, name):
+        return get_duckiefleet_root()+'/calibrations/kinematics/' + name + ".yaml"
+
+    def readParamFromFile(self):
+        # Check file existence
+        fname = self.getFilePath(self.veh_name)
+        # Use default.yaml if file doesn't exsit
+        if not os.path.isfile(fname):
+            rospy.logwarn("[%s] %s does not exist. Using default.yaml." % (
+                self.node_name, fname))
+            fname = self.getFilePath("default")
+            if not os.path.isfile(fname):
+                print("Nothing in %s" % fname)
+                return
+
+        with open(fname, 'r') as in_file:
+            try:
+                yaml_dict = yaml.load(in_file)
+            except yaml.YAMLError as exc:
+                self.logger.warning("could not open %s " % in_file)
+                # rospy.logfatal("[%s] YAML syntax error. File: %s fname. Exc: %s" % (
+                #     self.node_name, fname, exc))
+                # rospy.signal_shutdown()
+                return
+
+        # Set parameters using value in yaml file
+        if yaml_dict is None:
+            # Empty yaml file
+            return
+        gain = yaml_dict.get("gain")
+        if gain is not None:
+            self.gain = gain
+        trim = yaml_dict.get("trim")
+        if trim is not None:
+            self.trim = trim
+
     def wheel_command_callback(self, wheels_cmd):
         current_time = time.time()
         wheels_cmd.header.stamp.secs = int(current_time)
         wheels_cmd.header.stamp.nsecs = int(
             (current_time - wheels_cmd.header.stamp.secs) * 10**9)
+        # Decalibrate the wheel command for odometry
+        k_r_inv = self.gain + self.trim
+        k_l_inv = self.gain - self.trim
+
+        wheels_cmd.vel_right = self.gain * wheels_cmd.vel_right / k_r_inv
+        wheels_cmd.vel_left = self.gain * wheels_cmd.vel_left / k_l_inv
 
         with self.wheels_cmd_lock:
             self.wheels_cmd_msg_list.append(wheels_cmd)
