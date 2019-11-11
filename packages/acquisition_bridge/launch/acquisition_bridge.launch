@@ -7,7 +7,7 @@
   <!-- <arg name="param_file_name" default="default" doc="Specify a param file. ex:megaman"/> -->
 
   <group ns="$(arg veh)">
-    <node name="$(arg pkg_name)" pkg="$(arg pkg_name)" type="$(arg node_name).py" output="screen" clear_params="true" required="true">
+    <node name="$(arg pkg_name)" pkg="$(arg pkg_name)" type="$(arg node_name).py" output="screen" required="true">
       <rosparam command="load" file="$(find acquisition_bridge)/config/$(arg robot_type).yaml"/>
     </node>
     

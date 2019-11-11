@@ -32,6 +32,7 @@ def get_ip():
         IP = '127.0.0.1'
     finally:
         s.close()
+    print(IP)
     return IP
 
 
@@ -44,23 +45,26 @@ LAB_ROS_MASTER_PORT = "11311"
 
 
 # Define the two concurrent processes:
-def runDeviceSideProcess(ROS_MASTER_URI, quitEvent, is_autobot):
+def runDeviceSideProcess(ROS_MASTER_URI, ROS_IP, quitEvent, is_autobot):
     """
     Receive and process data from the remote device (Duckiebot or watchtower).
     """
     logger.info('Device side processor starting')
 
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
+    os.environ['ROS_IP'] = ROS_IP
     ap = acquisitionProcessor(logger, is_autobot)
     ap.liveUpdate(outputDictQueue, inputDictQueue, quitEvent)
 
 
-def runServerSideProcess(ROS_MASTER_URI, quitEvent, is_autobot):
+def runServerSideProcess(ROS_MASTER_URI, ROS_IP, quitEvent, is_autobot):
     """
     Publush the processed data to the ROS Master that the graph optimizer uses.
     """
     logger.info('Server side processor starting')
     os.environ['ROS_MASTER_URI'] = ROS_MASTER_URI
+    os.environ['ROS_IP'] = ROS_IP
+
     pp = publishingProcessor(logger, is_autobot)
     pp.publishOnServer(outputDictQueue, inputDictQueue,
                        quitEvent)
@@ -88,19 +92,19 @@ if __name__ == '__main__':
         "/"+veh_name+"/acquisition_bridge/is_autobot", default=True))
 
     # outputDictQueue is used to pass data between the two processes
-    outputDictQueue = multiprocessing.Queue(maxsize=100)
-    inputDictQueue = multiprocessing.Queue(maxsize=10)
+    outputDictQueue = multiprocessing.Queue(maxsize=1000)
+    inputDictQueue = multiprocessing.Queue(maxsize=100)
 
     # Start the processes
 
     deviceSideProcess = multiprocessing.Process(target=runDeviceSideProcess,
                                                 args=(
-                                                    ros_master_uri_device, quitEvent, is_autobot),
+                                                    ros_master_uri_device, ACQ_ROS_MASTER_URI_DEVICE_IP, quitEvent, is_autobot),
                                                 name="deviceSideProcess")
 
     serverSideProcess = multiprocessing.Process(target=runServerSideProcess,
                                                 args=(
-                                                    ros_master_uri_server, quitEvent, is_autobot),
+                                                    ros_master_uri_server, ACQ_ROS_MASTER_URI_DEVICE_IP, quitEvent, is_autobot),
                                                 name="serverSideProcess")
     deviceSideProcess.start()
     serverSideProcess.start()
