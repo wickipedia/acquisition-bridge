@@ -8,7 +8,7 @@ import os
 import Queue
 import collections
 import yaml
-from duckietown_msgs.msg import WheelsCmdStamped
+from duckietown_msgs.msg import WheelsCmdStamped, LanePose
 import time
 
 
@@ -24,6 +24,7 @@ class publishingProcessor():
         self.requestImageSend = False
         self.newEmergencyMsg = False
         self.emergencyRelease = False
+        self.newLanePose = False
 
         self.node_name = rospy.get_name()
         self.veh_name = self.node_name.split("/")[1]
@@ -42,6 +43,8 @@ class publishingProcessor():
             '/'+self.veh_name+'/'+"requestImage", Bool, self.requestImage,  queue_size=1)
         self.publisherCameraInfo = rospy.Publisher(
             "/"+self.veh_name+"/camera_node/camera_info", CameraInfo, queue_size=30)
+        self.subscriberLanePose = rospy.Subscriber(
+            '/'+self.veh_name+'/'+"LanePose", Bool, self.subLanePose,  queue_size=1)
         self.logger.info(
             "Setting up the server side process completed. Waiting for messages...")
 
@@ -119,6 +122,11 @@ class publishingProcessor():
                 inputDict['toggleEmergencyStop'] = self.emergencyToggle
                 self.logger.info("Emergency stop toggled")
 
+            if self.newLanePose:
+                print("Send pose into queue")
+                inputDict['LanePose'] = self.LanePose_data
+                self.logger.info("Send Lane Pose")
+
             if inputDict:
                 inputDictQueue.put(obj=pickle.dumps(inputDict, protocol=-1),
                                    block=True,
@@ -130,6 +138,12 @@ class publishingProcessor():
         self.logger.info("Topic received")
         if data.data:
             self.requestImageSend = True
+
+    def subLanePose(self, data):
+        print("subscribed laned pose")
+        self.logger.info("Pose received")
+        self.LanePose_data = data
+        self.newLanePose = True
 
     def toggleEmergencyStop(self, data):
         self.logger.info("Got toggle message")

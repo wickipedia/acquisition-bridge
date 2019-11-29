@@ -9,7 +9,7 @@ import Queue
 import time
 import threading
 import cv2
-from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped, LightSensor
+from duckietown_msgs.msg import WheelsCmdStamped, BoolStamped, LightSensor, LanePose
 from cv_bridge import CvBridge, CvBridgeError
 from duckietown_utils import get_duckiefleet_root
 import yaml
@@ -63,6 +63,8 @@ class acquisitionProcessor():
                 '/'+self.veh_name+'/'+self.acq_topic_wheel_command, WheelsCmdStamped, self.wheel_command_callback,  queue_size=5)
             self.emergency_stop_publisher = rospy.Publisher(
                 "/"+self.veh_name+"/wheels_driver_node/emergency_stop", BoolStamped, queue_size=1)
+            self.lane_pose_publisher = rospy.Publisher(
+                "/"+self.veh_name+"/LanePose", LanePose, queue_size=1)
             self.wheels_cmd_msg_list = []
             self.wheels_cmd_lock = threading.Lock()
         else:
@@ -265,6 +267,11 @@ class acquisitionProcessor():
                     stopMsg.data = incomingData["toggleEmergencyStop"]
                     self.emergency_stop_publisher.publish(stopMsg)
                     self.logger.info("Emergency stop toggled")
+                if "LanePose" in incomingData:
+                    LanePoseMsg = incomingData["LanePose"]
+                    print("Duckie received lane pose")
+                    self.lane_pose_publisher.publish(LanePoseMsg)
+
 
             except KeyboardInterrupt:
                 raise(Exception("Exiting"))
